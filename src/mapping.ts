@@ -19,6 +19,7 @@ export interface Sample {
   end: string; // ISO 8601 UTC
   civilDate: string; // YYYY-MM-DD in USER_TZ
   source?: string;
+  metadata?: Record<string, unknown>;
 }
 
 /** Civil date (YYYY-MM-DD) of an ISO timestamp, in the user's timezone. */
@@ -44,6 +45,21 @@ function firstNum(...candidates: Array<unknown>): number | undefined {
     if (typeof n === 'number' && !Number.isNaN(n)) return n;
   }
   return undefined;
+}
+
+function compactMetadata(metadata: Record<string, unknown>): Record<string, unknown> | undefined {
+  const entries = Object.entries(metadata).filter(([, value]) => value !== undefined && value !== null && value !== '');
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function durationSeconds(duration: unknown): number | undefined {
+  if (duration === null || duration === undefined) return undefined;
+  if (typeof duration === 'number' && Number.isFinite(duration)) return duration;
+  if (typeof duration !== 'string') return undefined;
+  const match = duration.trim().match(/^(-?\d+(?:\.\d+)?)s$/);
+  if (!match) return undefined;
+  const seconds = Number(match[1]);
+  return Number.isFinite(seconds) ? seconds : undefined;
 }
 
 /** Convert a Google {date:{year,month,day}} object to YYYY-MM-DD. */
@@ -110,6 +126,32 @@ export function mapHrvSample(dp: DataPoint): Sample | null {
 /** Physical (UTC) timestamp of a granular HRV sample, for pagination cutoffs. */
 export function hrvSampleTime(dp: DataPoint): string | undefined {
   return dp.heartRateVariability?.sampleTime?.physicalTime;
+}
+
+export function mapHeartRateSample(dp: DataPoint): Sample | null {
+  const h = dp.heartRate ?? {};
+  const t: string | undefined = h.sampleTime?.physicalTime;
+  const v = firstNum(h.beatsPerMinute, h.bpm, h.value);
+  if (!t || v === undefined) return null;
+  return {
+    dedupKey: `heartRate|${t}`,
+    hkType: 'heartRate',
+    unit: 'count/min',
+    value: v,
+    start: t,
+    end: t,
+    civilDate: civil(t),
+    source: 'fitbit',
+    metadata: compactMetadata({
+      googleMotionContext: h.metadata?.motionContext,
+      googleSensorLocation: h.metadata?.sensorLocation,
+    }),
+  };
+}
+
+/** Physical (UTC) timestamp of a granular heart-rate sample, for pagination cutoffs. */
+export function heartRateSampleTime(dp: DataPoint): string | undefined {
+  return dp.heartRate?.sampleTime?.physicalTime;
 }
 
 export function mapRestingHR(dp: DataPoint, whenISO: string): Sample | null {
@@ -195,8 +237,76 @@ export function mapDistance(dp: DataPoint): Sample | null {
   };
 }
 
+export function mapActiveEnergy(dp: DataPoint): Sample | null {
+  const s = dp.activeEnergyBurned?.interval?.startTime;
+  const e = dp.activeEnergyBurned?.interval?.endTime;
+  const v = firstNum(dp.activeEnergyBurned?.kcal, dp.activeEnergyBurned?.caloriesKcal, dp.activeEnergyBurned?.value);
+  if (!s || !e || v === undefined) return null;
+  return {
+    dedupKey: `activeEnergyBurned|${s}`,
+    hkType: 'activeEnergyBurned',
+    unit: 'kcal',
+    value: v,
+    start: s,
+    end: e,
+    civilDate: civil(s),
+    source: 'fitbit',
+  };
+}
+
+export function mapFloors(dp: DataPoint): Sample | null {
+  const s = dp.floors?.interval?.startTime;
+  const e = dp.floors?.interval?.endTime;
+  const v = firstNum(dp.floors?.count);
+  if (!s || !e || v === undefined) return null;
+  return {
+    dedupKey: `flightsClimbed|${s}`,
+    hkType: 'flightsClimbed',
+    unit: 'count',
+    value: v,
+    start: s,
+    end: e,
+    civilDate: civil(s),
+    source: 'fitbit',
+  };
+}
+
+export function mapWorkout(dp: DataPoint): Sample | null {
+  const exercise = dp.exercise ?? {};
+  const s: string | undefined = exercise.interval?.startTime;
+  const e: string | undefined = exercise.interval?.endTime;
+  if (!s || !e) return null;
+
+  const summary = exercise.metricsSummary ?? {};
+  const distanceMillimeters = firstNum(summary.distanceMillimeters);
+  const elevationGainMillimeters = firstNum(summary.elevationGainMillimeters);
+  const workoutType = exercise.exerciseType ?? 'OTHER';
+
+  return {
+    dedupKey: `workout|${s}|${workoutType}`,
+    hkType: 'workout',
+    category: workoutType,
+    start: s,
+    end: e,
+    civilDate: civil(s),
+    source: 'fitbit',
+    metadata: compactMetadata({
+      workoutActivityType: workoutType,
+      workoutName: exercise.displayName,
+      activeDurationSeconds: durationSeconds(exercise.activeDuration),
+      totalEnergyBurnedKcal: firstNum(summary.caloriesKcal),
+      totalDistanceMeters: distanceMillimeters === undefined ? undefined : distanceMillimeters / 1000,
+      averageHeartRateBPM: firstNum(summary.averageHeartRateBeatsPerMinute),
+      steps: firstNum(summary.steps),
+      activeZoneMinutes: firstNum(summary.activeZoneMinutes),
+      elevationGainMeters: elevationGainMillimeters === undefined ? undefined : elevationGainMillimeters / 1000,
+    }),
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Sleep — one Sample per stage segment. VERIFIED 2026-06-16:
+// Sleep — one Sample per session in-bed span plus one Sample per stage segment.
+// VERIFIED 2026-06-16:
 // sleep.interval.{startTime,endTime} and sleep.stages[].{startTime,endTime,type}
 // with type in {AWAKE, LIGHT, DEEP, REM}.
 // ---------------------------------------------------------------------------
@@ -215,11 +325,21 @@ export function mapSleep(dp: DataPoint): Sample[] {
   const sleep = dp.sleep;
   const stages: any[] = sleep?.stages ?? [];
   const startTime = sleep?.interval?.startTime;
-  if (!startTime) return [];
+  const endTime = sleep?.interval?.endTime;
+  if (!startTime || !endTime) return [];
   const civilD = civil(startTime);
+  const inBed: Sample = {
+    dedupKey: `sleepAnalysis|${startTime}|IN_BED`,
+    hkType: 'sleepAnalysis',
+    category: 'inBed',
+    start: startTime,
+    end: endTime,
+    civilDate: civilD,
+    source: 'fitbit',
+  };
 
   if (stages.length > 0) {
-    return stages
+    const stageSamples = stages
       .filter((st) => STAGE_MAP[st.type])
       .map((st) => ({
         dedupKey: `sleepAnalysis|${st.startTime}|${st.type}`,
@@ -230,11 +350,11 @@ export function mapSleep(dp: DataPoint): Sample[] {
         civilDate: civilD,
         source: 'fitbit',
       }));
+    return [inBed, ...stageSamples];
   }
 
-  const endTime = sleep?.interval?.endTime;
-  if (!endTime) return [];
   return [
+    inBed,
     {
       dedupKey: `sleepAnalysis|${startTime}|ASLEEP`,
       hkType: 'sleepAnalysis',

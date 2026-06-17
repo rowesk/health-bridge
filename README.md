@@ -56,7 +56,7 @@ sequenceDiagram
         S->>H: Log Health Sample (value, unit, timestamp)
     end
     S->>B: POST /ack { batchId }
-    B-->>S: cursor advanced (no duplicates next time)
+    B-->>S: sample rows marked acknowledged
 ```
 
 ## What gets synced
@@ -72,16 +72,19 @@ All field paths below were **verified against the live Google Health API**.
 | 🌬️ Respiratory rate | Respiratory Rate | `dailyRespiratoryRate.breathsPerMinute` |
 | 🏃 VO₂ max | VO₂ Max | `dailyVo2Max.vo2Max` |
 | 😴 Sleep + stages | Sleep Analysis | `sleep.stages[]` (AWAKE / LIGHT / DEEP / REM) |
-| 👟 Steps · Walking distance *(optional)* | Steps · Distance | `steps.count` · `distance.millimeters` |
+| ❤️ Continuous heart rate *(activity/cardio)* | Heart Rate | `heartRate.beatsPerMinute` |
+| 🔥 Active energy *(activity/cardio)* | Active Energy | `activeEnergyBurned.kcal` |
+| 🏋️ Workouts *(activity/cardio)* | Workouts | `exercise.interval` + `exercise.metricsSummary` |
+| 👟 Steps · distance · floors *(activity/cardio)* | Steps · Distance · Flights Climbed | `steps.count` · `distance.millimeters` · `floors.count` |
 
 ## Design notes (the non‑obvious bits)
 
 - **All HRV, not just a number.** The full intraday HRV series is written at each reading's real timestamp; the nightly average is only used for dates with no granular samples — so nothing's missed and nothing's double‑written.
 - **Source filtering.** The API returns both `FITBIT` and `HEALTH_KIT` data (because Google Health pulls *in* your Apple data). Health Bridge keeps only `FITBIT` points, so it never writes your Apple Watch's own data back into Apple Health.
-- **`list` vs `:reconcile`.** Daily summaries come from `list`; sessions (`sleep`, `steps`, `distance`) return an empty first page from `list` and must use `:reconcile`.
+- **`list` vs `:reconcile`.** Daily summaries come from `list`; sessions/intervals (`sleep`, `steps`, `distance`, `active-energy-burned`, `floors`, `exercise`) use `:reconcile`.
 - **HRV units.** Fitbit reports HRV as RMSSD; Apple Health only has an SDNN field. The value is written into SDNN — perfect for tracking *your* trend, not comparable in absolute terms to an Apple Watch.
-- **No duplicates.** A server‑side cursor + per‑sample dedup keys mean re‑running is always safe.
-- **Steps/distance** duplicate the iPhone's native logging, so they're behind `SYNC_ACTIVITY` (set `0` to skip).
+- **No duplicates.** Per-sample backend acknowledgements plus stable dedup keys mean re-running is safe, including when new metric types are added for already-synced dates.
+- **Activity/cardio imports** can duplicate another watch/phone if both are writing the same day into Apple Health, so continuous heart rate, workouts, active energy, steps, distance, and floors are behind `SYNC_ACTIVITY` (set `0` to skip).
 
 ## Quick start
 
@@ -119,7 +122,7 @@ Build the "Sync Google Health → Apple Health" Shortcut and turn on a daily aut
 | `GET` | `/auth/start?admin=…` | admin token | begin OAuth consent (one‑time) |
 | `GET` | `/auth/callback` | (Google) | OAuth redirect target |
 | `GET` | `/export` | Bearer | unsynced samples + `batchId` |
-| `POST` | `/ack` | Bearer | advance the sync cursor |
+| `POST` | `/ack` | Bearer | mark exported sample rows acknowledged |
 | `POST` | `/sync` | Bearer | trigger a fetch from Google |
 | `POST` | `/webhooks/google-health` | Bearer | future: push on new sleep data |
 
@@ -134,7 +137,7 @@ Build the "Sync Google Health → Apple Health" Shortcut and turn on a daily aut
 | `SHORTCUT_TOKEN` / `ADMIN_TOKEN` | — | `openssl rand -hex 32` |
 | `USER_TZ` | `Europe/London` | buckets "civil days" + picks sleep midpoint |
 | `LOOKBACK_DAYS` | `4` | how far back each sync re‑pulls |
-| `SYNC_ACTIVITY` | `1` | steps/distance — `0` to avoid double‑counting |
+| `SYNC_ACTIVITY` | `1` | continuous heart rate, workouts, active energy, steps, distance, floors — `0` to avoid double-counting |
 
 ## Repository layout
 
@@ -146,7 +149,7 @@ src/
   googleHealth.ts  API client (list / listSince / reconcile)
   mapping.ts       Google data points → Apple Health samples  ← core logic
   sync.ts          fetch → normalize → upsert
-  exporter.ts      /export + /ack (cursor, dedup-safe)
+  exporter.ts      /export + /ack (per-sample ack, dedup-safe)
   scheduler.ts     cron (every 3h)
   server.ts        Fastify routes
 docs/IMPLEMENTATION_SPEC.md   full build spec

@@ -64,6 +64,28 @@ export async function runSync(): Promise<SyncResult> {
     console.error('[sync] heart-rate-variability failed:', (err as Error).message);
   }
 
+  // 2c) Continuous heart rate — high-volume, but needed by recovery/strain apps.
+  if (CONFIG.syncActivity) {
+    try {
+      const points = (
+        await listSince(
+          'heart-rate',
+          (dp) => {
+            const t = M.heartRateSampleTime(dp);
+            return !!t && M.civil(t) < cutoffDate;
+          },
+          120,
+        )
+      ).filter(M.isFitbitSourced);
+      for (const dp of points) {
+        const s = M.mapHeartRateSample(dp);
+        if (s && recentEnough(s.civilDate)) samples.push(s);
+      }
+    } catch (err) {
+      console.error('[sync] heart-rate failed:', (err as Error).message);
+    }
+  }
+
   // 2b) Daily-average HRV — only for nights with no granular samples (fallback).
   try {
     const points = (await listDaily('daily-heart-rate-variability')).filter(M.isFitbitSourced);
@@ -98,11 +120,15 @@ export async function runSync(): Promise<SyncResult> {
     }
   }
 
-  // 4) Activity (reconcile) — optional; off-by-default candidates duplicate iPhone data.
+  // 4) Activity/cardio sessions (reconcile) — optional because some metrics can
+  // duplicate iPhone/Watch data if the owner uses multiple devices.
   if (CONFIG.syncActivity) {
     const intervals: Array<[string, (dp: DataPoint) => M.Sample | null]> = [
       ['steps', M.mapSteps],
       ['distance', M.mapDistance],
+      ['active-energy-burned', M.mapActiveEnergy],
+      ['floors', M.mapFloors],
+      ['exercise', M.mapWorkout],
     ];
     for (const [kebab, mapFn] of intervals) {
       try {
@@ -120,9 +146,9 @@ export async function runSync(): Promise<SyncResult> {
   // 5) Upsert.
   const insert = db.prepare(
     `INSERT INTO samples
-       (dedup_key, hk_type, category, value, unit, start_time, end_time, civil_date, source, created_at)
+       (dedup_key, hk_type, category, value, unit, start_time, end_time, civil_date, source, metadata_json, created_at)
      VALUES
-       (@dedupKey, @hkType, @category, @value, @unit, @start, @end, @civilDate, @source, @createdAt)
+       (@dedupKey, @hkType, @category, @value, @unit, @start, @end, @civilDate, @source, @metadataJson, @createdAt)
      ON CONFLICT(dedup_key) DO NOTHING`,
   );
   const insertMany = db.transaction((rows: M.Sample[]) => {
@@ -138,6 +164,7 @@ export async function runSync(): Promise<SyncResult> {
         end: s.end,
         civilDate: s.civilDate,
         source: s.source ?? null,
+        metadataJson: s.metadata ? JSON.stringify(s.metadata) : null,
         createdAt: Date.now(),
       });
       added += info.changes;

@@ -22,7 +22,7 @@
    ▼         │   │  HTTP API (Fastify, behind Traefik HTTPS):                         │  │
  Google ─────┼───┼──►  /auth/start, /auth/callback   (one-time OAuth bootstrap)       │  │
  Health API  │   │     GET  /export   (Bearer SHORTCUT_TOKEN) → unsynced samples JSON │  │
- (OAuth/REST)│   │     POST /ack      (advance export cursor)                         │  │
+ (OAuth/REST)│   │     POST /ack      (mark exported samples acknowledged)             │  │
             │   │     POST /webhooks/google-health  (future: sleep push)             │  │
             │   │     GET  /healthz  (liveness)                                       │  │
             │   │  SQLite (Docker volume): oauth, samples, cursors                    │  │
@@ -448,7 +448,7 @@ function dailyCivil(dp: any): string {
 
 ### 4.8 Export + ack (`exporter.ts`)
 
-Cursor model: backend tracks `last_acked_date`. `/export` returns samples on civil dates **after** `last_acked_date` and **up to yesterday** (today is excluded — it isn't a finished day, avoids revisions). After the Shortcut writes them, it `POST /ack`s the batch, advancing the cursor. Re-running before ack re-serves the same batch (so a failed run never loses data); the only edge case is a partial write that then re-acks — bounded because nightly metrics are one-per-day.
+Ack model: backend marks exact sample rows as acknowledged after the iOS app writes a batch and calls `POST /ack`. `/export` returns unacknowledged samples **up to yesterday** (today is excluded because it is not a finished day and Fitbit can revise it). The legacy `last_acked_date` cursor is still maintained for compatibility, but it is no longer the only export filter. This matters when new metric types are added: newly inserted rows for an already-acked civil date can still export without re-serving every older sample.
 
 ```ts
 import { db } from './db.js';
@@ -657,9 +657,11 @@ Build in the Shortcuts app (it's visual; here's the exact action list). Name it 
 | `daily-vo2-max` | `vo2Max` | VO₂ Max | mL/(kg·min) | |
 | `steps` | `stepCount` | Steps | count | |
 | `distance` | `distanceWalkingRunning` | Walking + Running Distance | m | API in mm → /1000 |
-| `active-energy-burned` | `activeEnergyBurned` | Active Energy | kcal | optional |
+| `active-energy-burned` | `activeEnergyBurned` | Active Energy | kcal | controlled by `SYNC_ACTIVITY` |
+| `floors` | `flightsClimbed` | Flights Climbed | count | controlled by `SYNC_ACTIVITY` |
+| `exercise` | `workout` | Workout | — | native iOS app writes `HKWorkout` with metadata for type, calories, distance, HR, steps |
 | `sleep` (stages) | `sleepAnalysis` | Sleep | — | per-stage segments → category |
-| `heart-rate` (intraday) | `heartRate` | Heart Rate | count/min | optional, high volume |
+| `heart-rate` (intraday) | `heartRate` | Heart Rate | count/min | controlled by `SYNC_ACTIVITY`, high volume |
 
 Sleep stage → Apple category: `LIGHT→Asleep Core`, `DEEP→Asleep Deep`, `REM→Asleep REM`, `AWAKE→Awake`.
 

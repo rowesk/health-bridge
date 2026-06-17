@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS samples (
   end_time    TEXT NOT NULL,        -- ISO 8601 UTC
   civil_date  TEXT NOT NULL,        -- YYYY-MM-DD in USER_TZ (the night/day it belongs to)
   source      TEXT,
+  metadata_json TEXT,                -- optional metric-specific JSON payload, e.g. workout fields
+  acked_at    INTEGER,               -- epoch ms when the phone confirmed this exact sample
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_samples_date ON samples(civil_date);
@@ -47,7 +49,36 @@ CREATE TABLE IF NOT EXISTS batches (
   max_date   TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS batch_samples (
+  batch_id  TEXT NOT NULL,
+  dedup_key TEXT NOT NULL,
+  PRIMARY KEY (batch_id, dedup_key),
+  FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE CASCADE,
+  FOREIGN KEY (dedup_key) REFERENCES samples(dedup_key) ON DELETE CASCADE
+);
 `);
+
+function ensureColumn(table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+ensureColumn('samples', 'metadata_json', 'TEXT');
+ensureColumn('samples', 'acked_at', 'INTEGER');
+db.exec(`CREATE INDEX IF NOT EXISTS idx_samples_ack ON samples(acked_at, civil_date);`);
+
+const cursor = db.prepare(`SELECT last_acked_date FROM cursors WHERE id = 1`).get() as
+  | { last_acked_date: string | null }
+  | undefined;
+if (cursor?.last_acked_date) {
+  db.prepare(`UPDATE samples SET acked_at = COALESCE(acked_at, ?) WHERE civil_date <= ?`).run(
+    Date.now(),
+    cursor.last_acked_date,
+  );
+}
 
 export interface OAuthRow {
   id: number;
