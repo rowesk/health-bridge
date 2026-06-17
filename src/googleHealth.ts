@@ -2,6 +2,7 @@ import { getAccessToken } from './oauth.js';
 import { CONFIG } from './config.js';
 
 const BASE = 'https://health.googleapis.com/v4/users/me/dataTypes';
+const DEFAULT_PAGE_SIZE = 1000;
 
 /**
  * Generic data point shape. The metric-specific payload lives under a key named
@@ -21,6 +22,22 @@ async function authedGet(url: string): Promise<any> {
   return res.json();
 }
 
+function dataPointsUrl(kebabType: string, pageToken?: string, pageSize = DEFAULT_PAGE_SIZE): string {
+  const params = new URLSearchParams();
+  params.set('pageSize', String(pageSize));
+  if (pageToken) params.set('pageToken', pageToken);
+  return `${BASE}/${kebabType}/dataPoints?${params.toString()}`;
+}
+
+function reconcileUrl(kebabType: string, pageToken?: string, pageSize = DEFAULT_PAGE_SIZE): string {
+  const params = new URLSearchParams({
+    dataSourceFamily: 'users/me/dataSourceFamilies/google-wearables',
+    pageSize: String(pageSize),
+  });
+  if (pageToken) params.set('pageToken', pageToken);
+  return `${BASE}/${kebabType}/dataPoints:reconcile?${params.toString()}`;
+}
+
 /**
  * Daily summary types (daily-heart-rate-variability, daily-resting-heart-rate,
  * daily-oxygen-saturation, daily-respiratory-rate, daily-vo2-max).
@@ -32,18 +49,18 @@ async function authedGet(url: string): Promise<any> {
  */
 export async function listDaily(kebabType: string, maxPages = 1): Promise<DataPoint[]> {
   const out: DataPoint[] = [];
-  let url: string | null = `${BASE}/${kebabType}/dataPoints`;
+  let pageToken: string | undefined;
   let pages = 0;
-  while (url && pages < maxPages) {
+  while (pages < maxPages) {
+    const url = dataPointsUrl(kebabType, pageToken);
     const data: any = await authedGet(url);
     if (CONFIG.debugDump && (data.dataPoints?.length ?? 0) > 0) {
       console.log(`[DEBUG_DUMP] ${kebabType}:`, JSON.stringify(data.dataPoints[0]));
     }
     out.push(...(data.dataPoints ?? []));
     pages += 1;
-    url = data.nextPageToken
-      ? `${BASE}/${kebabType}/dataPoints?pageToken=${encodeURIComponent(data.nextPageToken)}`
-      : null;
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
   }
   return out;
 }
@@ -57,23 +74,25 @@ export async function listSince(
   kebabType: string,
   isOlderThanCutoff: (dp: DataPoint) => boolean,
   maxPages = 30,
+  pageSize = DEFAULT_PAGE_SIZE,
 ): Promise<DataPoint[]> {
   const out: DataPoint[] = [];
-  let url: string | null = `${BASE}/${kebabType}/dataPoints`;
+  let pageToken: string | undefined;
   let pages = 0;
-  while (url && pages < maxPages) {
+  while (pages < maxPages) {
+    const url = dataPointsUrl(kebabType, pageToken, pageSize);
     const data: any = await authedGet(url);
     const pts: DataPoint[] = data.dataPoints ?? [];
     if (CONFIG.debugDump && pts.length > 0) {
       console.log(`[DEBUG_DUMP] ${kebabType}:`, JSON.stringify(pts[0]));
     }
+    if (pts.length === 0) break;
     out.push(...pts);
     pages += 1;
     const oldestOnPage = pts[pts.length - 1];
     if (oldestOnPage && isOlderThanCutoff(oldestOnPage)) break;
-    url = data.nextPageToken
-      ? `${BASE}/${kebabType}/dataPoints?pageToken=${encodeURIComponent(data.nextPageToken)}`
-      : null;
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
   }
   return out;
 }
@@ -83,12 +102,28 @@ export async function listSince(
  * endpoint returns an empty first page for these, so use `:reconcile`, which
  * returns deduped, tracker-sourced points. VERIFIED 2026-06-16 for sleep.
  */
-export async function reconcile(kebabType: string): Promise<DataPoint[]> {
-  const family = encodeURIComponent('users/me/dataSourceFamilies/google-wearables');
-  const url = `${BASE}/${kebabType}/dataPoints:reconcile?dataSourceFamily=${family}`;
-  const data = await authedGet(url);
-  if (CONFIG.debugDump && (data.dataPoints?.length ?? 0) > 0) {
-    console.log(`[DEBUG_DUMP] ${kebabType} (reconcile):`, JSON.stringify(data.dataPoints[0]));
+export async function reconcile(
+  kebabType: string,
+  isOlderThanCutoff?: (dp: DataPoint) => boolean,
+  maxPages = 30,
+  pageSize = DEFAULT_PAGE_SIZE,
+): Promise<DataPoint[]> {
+  const out: DataPoint[] = [];
+  let pageToken: string | undefined;
+  let pages = 0;
+  while (pages < maxPages) {
+    const data = await authedGet(reconcileUrl(kebabType, pageToken, pageSize));
+    const pts: DataPoint[] = data.dataPoints ?? [];
+    if (CONFIG.debugDump && pts.length > 0) {
+      console.log(`[DEBUG_DUMP] ${kebabType} (reconcile):`, JSON.stringify(pts[0]));
+    }
+    if (pts.length === 0) break;
+    out.push(...pts);
+    pages += 1;
+    const oldestOnPage = pts[pts.length - 1];
+    if (isOlderThanCutoff && oldestOnPage && isOlderThanCutoff(oldestOnPage)) break;
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
   }
-  return data.dataPoints ?? [];
+  return out;
 }

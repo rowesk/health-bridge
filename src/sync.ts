@@ -23,13 +23,14 @@ export async function runSync(): Promise<SyncResult> {
   const cutoff = DateTime.now().setZone(CONFIG.userTz).minus({ days: CONFIG.lookbackDays }).startOf('day');
   const cutoffDate = cutoff.toFormat('yyyy-LL-dd');
   const recentEnough = (civilDate: string | undefined): boolean => !!civilDate && civilDate >= cutoffDate;
+  const olderThanCutoff = (iso: string | undefined): boolean => !!iso && M.civil(iso) < cutoffDate;
 
   const samples: M.Sample[] = [];
 
   // 1) Sleep (reconcile) — provides the nightly midpoint used to timestamp daily metrics.
   const midpointByDate = new Map<string, string>();
   try {
-    const sleeps = (await reconcile('sleep')).filter(M.isFitbitSourced);
+    const sleeps = (await reconcile('sleep', (dp) => olderThanCutoff(dp.sleep?.interval?.startTime))).filter(M.isFitbitSourced);
     for (const dp of sleeps) {
       const startTime = dp.sleep?.interval?.startTime;
       if (!startTime) continue;
@@ -50,7 +51,7 @@ export async function runSync(): Promise<SyncResult> {
     const points = (
       await listSince('heart-rate-variability', (dp) => {
         const t = M.hrvSampleTime(dp);
-        return !!t && M.civil(t) < cutoffDate;
+        return olderThanCutoff(t);
       })
     ).filter(M.isFitbitSourced);
     for (const dp of points) {
@@ -72,7 +73,7 @@ export async function runSync(): Promise<SyncResult> {
           'heart-rate',
           (dp) => {
             const t = M.heartRateSampleTime(dp);
-            return !!t && M.civil(t) < cutoffDate;
+            return olderThanCutoff(t);
           },
           120,
         )
@@ -123,16 +124,16 @@ export async function runSync(): Promise<SyncResult> {
   // 4) Activity/cardio sessions (reconcile) — optional because some metrics can
   // duplicate iPhone/Watch data if the owner uses multiple devices.
   if (CONFIG.syncActivity) {
-    const intervals: Array<[string, (dp: DataPoint) => M.Sample | null]> = [
-      ['steps', M.mapSteps],
-      ['distance', M.mapDistance],
-      ['active-energy-burned', M.mapActiveEnergy],
-      ['floors', M.mapFloors],
-      ['exercise', M.mapWorkout],
+    const intervals: Array<[string, (dp: DataPoint) => M.Sample | null, (dp: DataPoint) => string | undefined, number]> = [
+      ['steps', M.mapSteps, (dp) => dp.steps?.interval?.startTime, 120],
+      ['distance', M.mapDistance, (dp) => dp.distance?.interval?.startTime, 120],
+      ['active-energy-burned', M.mapActiveEnergy, (dp) => dp.activeEnergyBurned?.interval?.startTime, 120],
+      ['floors', M.mapFloors, (dp) => dp.floors?.interval?.startTime, 20],
+      ['exercise', M.mapWorkout, (dp) => dp.exercise?.interval?.startTime, 20],
     ];
-    for (const [kebab, mapFn] of intervals) {
+    for (const [kebab, mapFn, startTime, maxPages] of intervals) {
       try {
-        const points = (await reconcile(kebab)).filter(M.isFitbitSourced);
+        const points = (await reconcile(kebab, (dp) => olderThanCutoff(startTime(dp)), maxPages)).filter(M.isFitbitSourced);
         for (const dp of points) {
           const s = mapFn(dp);
           if (s && recentEnough(s.civilDate)) samples.push(s);
