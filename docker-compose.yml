@@ -1,0 +1,19 @@
+# Dokploy: create a "Compose" application pointing at this file.
+# Traefik (built into Dokploy) terminates HTTPS and routes your domain to port 8080.
+services:
+  health-bridge:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - health_data:/data
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  health_data:

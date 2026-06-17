@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.local
+*.db
+*.db-shm
+*.db-wal
+.git
+.gitignore
+docs
+shortcut
+scripts
+*.md
+.DS_Store
