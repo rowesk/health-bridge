@@ -15,7 +15,7 @@
             │                                                                            │
  Fitbit Air │   ┌─────────────────────────  health-bridge (Docker)  ─────────────────┐  │
    │ BLE     │   │                                                                    │  │
-   ▼         │   │  Scheduler (cron, every 3h)                                        │  │
+   ▼         │   │  Scheduler (cron, hourly)                                           │  │
  Google      │   │     └─ refresh access token → pull Google Health API (recent days)│  │
  Health app  │   │        → normalize → upsert into SQLite (samples)                 │  │
    │ cloud   │   │                                                                    │  │
@@ -543,8 +543,8 @@ import cron from 'node-cron';
 import { runSync } from './sync.js';
 
 export function startScheduler() {
-  // Every 3 hours; the Air's data lands in Google cloud through the day.
-  cron.schedule('0 */3 * * *', () => { runSync().catch(console.error); });
+  // Hourly; the Air's data lands in Google cloud through the day.
+  cron.schedule('0 * * * *', () => { runSync().catch(console.error); });
 }
 ```
 

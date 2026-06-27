@@ -31,7 +31,7 @@ flowchart LR
     C -->|"Google Health API · OAuth2"| D[Health Bridge backend]
     subgraph Server["Your server · Docker"]
         D --> E[(SQLite cache)]
-        D -. "cron every 3h" .-> D
+        D -. "cron hourly" .-> D
     end
     D -->|"GET /export · Bearer"| F[Apple Shortcut]
     F -->|"Log Health Sample"| G[Apple Health]
@@ -47,7 +47,7 @@ sequenceDiagram
     participant G as Google Health API
     participant H as Apple Health
 
-    Note over B,G: backend also pre-syncs every 3h
+    Note over B,G: backend also pre-syncs hourly
     S->>B: GET /export  (Bearer SHORTCUT_TOKEN)
     B->>G: refresh token → pull HRV, sleep, RHR, SpO2, …
     G-->>B: data points (FITBIT-sourced only)
@@ -150,7 +150,7 @@ src/
   mapping.ts       Google data points → Apple Health samples  ← core logic
   sync.ts          fetch → normalize → upsert
   exporter.ts      /export + /ack (per-sample ack, dedup-safe)
-  scheduler.ts     cron (every 3h)
+  scheduler.ts     cron (hourly)
   server.ts        Fastify routes
 docs/IMPLEMENTATION_SPEC.md   full build spec
 shortcut/SHORTCUT_GUIDE.md    build the Apple Shortcut
