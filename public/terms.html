@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms of Service - Health Bridge</title>
+  <meta name="description" content="Terms of service for Health Bridge, a private self-hosted Google Health to Apple Health bridge.">
+  <style>
+    :root { --ink:#17202c; --muted:#5f6f80; --line:#dbe3ea; --paper:#fff; --mist:#f3f6f8; --accent:#0e7c66; --accent-2:#2f5f98; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--mist); }
+    a { color:var(--accent-2); text-decoration-thickness:.08em; text-underline-offset:.18em; }
+    .wrap { width:min(880px, calc(100% - 40px)); margin:0 auto; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:26px 0; }
+    .brand { font-weight:750; }
+    nav { display:flex; gap:18px; font-size:14px; }
+    nav a { color:var(--muted); text-decoration:none; }
+    main { background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:44px; margin:42px auto 54px; box-shadow:0 24px 70px rgba(23,32,44,.08); }
+    .eyebrow { color:var(--accent); font-size:13px; font-weight:760; text-transform:uppercase; letter-spacing:.12em; margin-bottom:18px; }
+    h1 { font-size:44px; line-height:1; margin:0 0 12px; letter-spacing:0; }
+    .updated { color:var(--muted); margin:0 0 34px; }
+    h2 { font-size:24px; line-height:1.15; margin:32px 0 10px; }
+    p, li { color:var(--muted); line-height:1.7; }
+    p { margin:0 0 14px; }
+    ul { margin:0 0 18px; padding-left:22px; }
+    footer { border-top:1px solid var(--line); padding:28px 0 42px; color:var(--muted); font-size:14px; }
+    footer .wrap { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    @media (max-width:720px) { header { align-items:flex-start; flex-direction:column; } main { padding:28px; margin-top:22px; } h1 { font-size:36px; } }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <div class="brand">Health Bridge</div>
+    <nav aria-label="Site navigation">
+      <a href="/">Overview</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="eyebrow">Terms of Service</div>
+    <h1>Terms of Service</h1>
+    <p class="updated">Last updated: June 27, 2026</p>
+
+    <p>These terms apply to Health Bridge, a self-hosted personal service that helps its owner move Fitbit-originated data from Google Health into Apple Health.</p>
+
+    <h2>Personal-use service</h2>
+    <p>Health Bridge is intended for a private personal data portability workflow. It is not offered as a commercial public health platform or managed consumer service.</p>
+
+    <h2>Not medical advice</h2>
+    <p>Health Bridge is not a medical device, clinical decision tool, health-care provider, or emergency service. Data moved through the service may be delayed, incomplete, duplicated, or inaccurate. Do not use the service to diagnose, treat, monitor, or prevent any medical condition.</p>
+
+    <h2>Owner responsibility</h2>
+    <p>The owner is responsible for configuring Google OAuth access, server credentials, Apple Health import permissions, backups, retention, and deletion of stored data.</p>
+
+    <h2>Availability and accuracy</h2>
+    <p>The service is provided as-is. Sync behavior depends on Google Health availability, Fitbit data availability, network access, OAuth token validity, Apple Health permissions, and the owner's hosting environment.</p>
+
+    <h2>Third-party services</h2>
+    <p>Health Bridge is not affiliated with, endorsed by, or sponsored by Google, Fitbit, Apple, or Bevel. Google Health, Fitbit, Apple Health, and related names are trademarks of their respective owners.</p>
+
+    <h2>Acceptable use</h2>
+    <p>The service should only be used with Google accounts and health data that the operator is authorized to access. Do not use Health Bridge to access another person's health data without their explicit consent and legal authority.</p>
+
+    <h2>Changes</h2>
+    <p>These terms may be updated as the project changes. The updated date at the top of this page indicates the latest revision.</p>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Health Bridge</span>
+      <span><a href="/">Overview</a> &middot; <a href="/privacy">Privacy Policy</a></span>
+    </div>
+  </footer>
+</body>
+</html>

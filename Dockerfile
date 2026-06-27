@@ -10,6 +10,7 @@ COPY package*.json ./
 RUN npm install
 COPY tsconfig.json ./
 COPY src ./src
+COPY public ./public
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runtime
@@ -22,6 +23,7 @@ RUN apt-get update \
 COPY package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/public ./public
 # SQLite DB + OAuth tokens live here — mount a Dokploy volume to /data
 RUN mkdir -p /data
 EXPOSE 8080

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy - Health Bridge</title>
+  <meta name="description" content="Privacy policy for Health Bridge, a private self-hosted Google Health to Apple Health bridge.">
+  <style>
+    :root { --ink:#17202c; --muted:#5f6f80; --line:#dbe3ea; --paper:#fff; --mist:#f3f6f8; --accent:#0e7c66; --accent-2:#2f5f98; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--mist); }
+    a { color:var(--accent-2); text-decoration-thickness:.08em; text-underline-offset:.18em; }
+    .wrap { width:min(880px, calc(100% - 40px)); margin:0 auto; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:26px 0; }
+    .brand { font-weight:750; }
+    nav { display:flex; gap:18px; font-size:14px; }
+    nav a { color:var(--muted); text-decoration:none; }
+    main { background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:44px; margin:42px auto 54px; box-shadow:0 24px 70px rgba(23,32,44,.08); }
+    .eyebrow { color:var(--accent); font-size:13px; font-weight:760; text-transform:uppercase; letter-spacing:.12em; margin-bottom:18px; }
+    h1 { font-size:44px; line-height:1; margin:0 0 12px; letter-spacing:0; }
+    .updated { color:var(--muted); margin:0 0 34px; }
+    h2 { font-size:24px; line-height:1.15; margin:32px 0 10px; }
+    p, li { color:var(--muted); line-height:1.7; }
+    p { margin:0 0 14px; }
+    ul { margin:0 0 18px; padding-left:22px; }
+    footer { border-top:1px solid var(--line); padding:28px 0 42px; color:var(--muted); font-size:14px; }
+    footer .wrap { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    @media (max-width:720px) { header { align-items:flex-start; flex-direction:column; } main { padding:28px; margin-top:22px; } h1 { font-size:36px; } }
+  </style>
+</head>
+<body>
+  <header class="wrap">
+    <div class="brand">Health Bridge</div>
+    <nav aria-label="Site navigation">
+      <a href="/">Overview</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="eyebrow">Privacy Policy</div>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: June 27, 2026</p>
+
+    <p>Health Bridge is a self-hosted personal service that helps its owner move Fitbit-originated data from Google Health into Apple Health. This policy explains what the service accesses and how that data is handled.</p>
+
+    <h2>Data accessed from Google</h2>
+    <p>With the owner's consent, Health Bridge requests read-only Google Health scopes for:</p>
+    <ul>
+      <li>health metrics and measurements, including heart rate variability, resting heart rate, oxygen saturation, respiratory rate, VO2 max, and heart rate;</li>
+      <li>sleep data, including sleep sessions and sleep stages;</li>
+      <li>activity and fitness data, including steps, distance, active energy, floors, and workouts.</li>
+    </ul>
+
+    <h2>How the data is used</h2>
+    <p>Health Bridge uses this data only to normalize recent Google Health records and make them available to the owner's authenticated Apple Health import workflow. The service filters for Fitbit-originated data so Apple Health data that Google has imported is not written back into Apple Health.</p>
+
+    <h2>Where the data is stored</h2>
+    <p>Recent normalized samples, OAuth tokens, sync cursors, and acknowledgement state are stored in a private SQLite database on the owner's self-hosted server. The service does not use third-party analytics, advertising SDKs, or external data processors for this workflow.</p>
+
+    <h2>Sharing and sale of data</h2>
+    <p>Health Bridge does not sell health data, share health data with advertisers, or use health data for ads, profiling, credit, employment, insurance, or unrelated analytics. The private export endpoint is intended only for the owner's Apple Health import flow.</p>
+
+    <h2>Security</h2>
+    <p>The production service is served over HTTPS. Private API endpoints require bearer tokens. OAuth credentials and tokens are stored on the self-hosted server and are not displayed on these public pages.</p>
+
+    <h2>Deleting data and revoking access</h2>
+    <p>The owner can revoke Google access from their Google Account permissions page at any time. The owner can also delete the self-hosted SQLite database or Docker volume to remove stored samples, OAuth tokens, and sync state from the server.</p>
+
+    <h2>Contact</h2>
+    <p>For privacy questions, use the developer contact email configured for the Health Bridge OAuth application in Google Cloud.</p>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Health Bridge</span>
+      <span><a href="/">Overview</a> &middot; <a href="/terms">Terms of Service</a></span>
+    </div>
+  </footer>
+</body>
+</html>
